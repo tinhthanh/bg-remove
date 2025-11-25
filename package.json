@@ -17,6 +17,7 @@
     "jszip": "^3.10.1",
     "mp4-muxer": "^5.1.1",
     "onnxruntime-web": "^1.20.0-dev.20240908-de7a02beef",
+    "penpal": "^7.0.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-dropzone": "^14.2.3"

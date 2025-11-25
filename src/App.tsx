@@ -2,6 +2,8 @@ import React, { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { Images } from "./components/Images";
 import { processImages, initializeModel, getModelInfo } from "../lib/process";
+import { WindowMessenger, connect } from "penpal";
+import { penpalMethods } from "./services/penpal-service";
 
 interface AppError {
   message: string;
@@ -15,20 +17,11 @@ export interface ImageFile {
 
 // Sample images from Unsplash
 const sampleImages = [
-  "https://images.unsplash.com/photo-1601233749202-95d04d5b3c00?q=80&w=2938&auto=format&fit=crop&ixlib=rb-4.0.3",
-  "https://images.unsplash.com/photo-1513013156887-d2bf241c8c82?q=80&w=2970&auto=format&fit=crop&ixlib=rb-4.0.3",
-  "https://images.unsplash.com/photo-1643490745745-e8ca9a3a1c90?q=80&w=2874&auto=format&fit=crop&ixlib=rb-4.0.3",
-  "https://images.unsplash.com/photo-1574158622682-e40e69881006?q=80&w=2333&auto=format&fit=crop&ixlib=rb-4.0.3"
+  "https://cdn.midjourney.com/818eb2e0-ae25-4472-890f-6eb92a7aca72/0_1_384_N.webp",
+  "https://cdn.midjourney.com/f81363a3-a91d-49a4-ab88-b6feb2c31e8f/0_0.jpeg",
+  "https://cdn.midjourney.com/5b6828cf-7707-41fe-bafc-34e4a38f356e/0_0.jpeg",
+  "https://cdn.midjourney.com/67b5d4ba-e5a1-4ac8-a4aa-4507cebec187/0_0.jpeg"
 ];
-
-// Check if the user is on mobile Safari
-const isMobileSafari = () => {
-  const ua = window.navigator.userAgent;
-  const iOS = !!ua.match(/iPad/i) || !!ua.match(/iPhone/i);
-  const webkit = !!ua.match(/WebKit/i);
-  const iOSSafari = iOS && webkit && !ua.match(/CriOS/i) && !ua.match(/OPiOS/i) && !ua.match(/FxiOS/i);
-  return iOSSafari && 'ontouchend' in document;
-};
 
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
@@ -40,15 +33,34 @@ export default function App() {
   const [images, setImages] = useState<ImageFile[]>([]);
 
   useEffect(() => {
-    if (isMobileSafari()) {
-      window.location.href = 'https://bg-mobile.addy.ie';
-      return;
-    }
+    // Removed legacy redirect logic specifically for Mobile Safari.
+    // Our lib/process.ts handles iOS optimization internally now.
 
     // Only check iOS on load since that won't change
     const { isIOS: isIOSDevice } = getModelInfo();
     setIsIOS(isIOSDevice);
     setIsLoading(false);
+
+    // Setup Penpal connection if running in iframe
+    if (window.parent !== window) {
+      const messenger = new WindowMessenger({
+        remoteWindow: window.parent,
+        // Allow any origin - you may want to restrict this in production
+        allowedOrigins: ['*'],
+      });
+
+      const connection = connect({
+        messenger,
+        methods: penpalMethods,
+      });
+
+      console.log('Penpal connection established for iframe communication');
+
+      // Cleanup on unmount
+      return () => {
+        connection.destroy();
+      };
+    }
   }, []);
 
   const handleModelChange = async (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -81,7 +93,7 @@ export default function App() {
       processedFile: undefined
     }));
     setImages(prev => [...prev, ...newImages]);
-    
+
     // Initialize model if this is the first image
     if (images.length === 0) {
       setIsLoading(true);
@@ -104,7 +116,7 @@ export default function App() {
       }
       setIsLoading(false);
     }
-    
+
     for (const image of newImages) {
       try {
         const result = await processImages([image.file]);
@@ -136,7 +148,34 @@ export default function App() {
     if (imageFiles.length > 0) {
       onDrop(imageFiles);
     }
-  };  
+  };
+
+  const handlePasteClick = async () => {
+    try {
+      // Check for permissions query if needed, but read() usually triggers prompt
+      const clipboardItems = await navigator.clipboard.read();
+      const imageFiles: File[] = [];
+      
+      for (const item of clipboardItems) {
+        // Look for image types in the clipboard item
+        const imageType = item.types.find(type => type.startsWith('image/'));
+        if (imageType) {
+          const blob = await item.getType(imageType);
+          const file = new File([blob], `pasted-image-${Date.now()}.png`, { type: imageType });
+          imageFiles.push(file);
+        }
+      }
+      
+      if (imageFiles.length > 0) {
+        onDrop(imageFiles);
+      } else {
+        alert("No image found in clipboard!");
+      }
+    } catch (err) {
+      console.error('Failed to paste from clipboard:', err);
+      alert("Could not access clipboard. Please allow permission or use Ctrl+V.");
+    }
+  };
 
   const handleSampleImageClick = async (url: string) => {
     try {
@@ -162,16 +201,11 @@ export default function App() {
     },
   });
 
-  // Remove the full screen error and loading states
-
   return (
     <div className="min-h-screen bg-gray-50" onPaste={handlePaste}>
       <nav className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-gray-800">
-              BG
-            </h1>
             {!isIOS && (
               <div className="flex items-center gap-4">
                 <span className="text-gray-600">Model:</span>
@@ -198,33 +232,11 @@ export default function App() {
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className={`grid ${images.length === 0 ? 'grid-cols-2 gap-8' : 'grid-cols-1'}`}>
-          {images.length === 0 && (
-            <div className="flex flex-col justify-center items-start">
-              <img 
-                src="hero.png"
-                alt="Surprised man"
-                className="mb-6 w-full object-cover h-[400px]"
-              />
-              <h2 className="text-3xl font-bold text-gray-800 mb-4">
-                Remove Image Background
-              </h2>
-              <p className="text-lg text-gray-600 mb-4">
-                100% Automatically and Free
-              </p>
-              <p className="text-gray-500">
-                Upload your image and let our AI remove the background instantly. Perfect for professional photos, product images, and more.
-              </p>
-              <p className="text-sm text-gray-300 mt-4">
-                Built with love by Addy Osmani using Transformers.js
-              </p>
-            </div>
-          )}
-          
+        <div className={`grid ${images.length === 0 ? 'grid-cols-1 gap-8' : 'grid-cols-1'}`}>
           <div className={images.length === 0 ? '' : 'w-full'}>
             <div
               {...getRootProps()}
-              className={`p-8 mb-8 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors duration-300 ease-in-out bg-white
+              className={`p-8 mb-8 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors duration-300 ease-in-out bg-white relative
                 ${isDragAccept ? "border-green-500 bg-green-50" : ""}
                 ${isDragReject ? "border-red-500 bg-red-50" : ""}
                 ${isDragActive ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-blue-500 hover:bg-blue-50"}
@@ -250,7 +262,7 @@ export default function App() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleModelChange({ target: { value: 'briaai/RMBG-1.4' }} as any);
+                          handleModelChange({ target: { value: 'briaai/RMBG-1.4' } } as any);
                         }}
                         className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                       >
@@ -269,6 +281,27 @@ export default function App() {
                         : "Drag and drop images here"}
                     </p>
                     <p className="text-sm text-gray-500">or click to select files</p>
+                    
+                    <div className="flex items-center gap-3 mt-4 w-full justify-center">
+                      <div className="h-px bg-gray-200 w-16"></div>
+                      <span className="text-gray-400 text-sm">OR</span>
+                      <div className="h-px bg-gray-200 w-16"></div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePasteClick();
+                      }}
+                      className="mt-2 px-5 py-2.5 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-all duration-200 font-medium flex items-center gap-2 group border border-indigo-100"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                      Paste from Clipboard
+                    </button>
+                    <span className="text-xs text-gray-400 mt-1">(or press Ctrl + V)</span>
                   </>
                 )}
               </div>
@@ -292,9 +325,6 @@ export default function App() {
                     </button>
                   ))}
                 </div>
-                <p className="text-sm text-gray-500 mt-4">
-                  All images are processed locally on your device and are not uploaded to any server.
-                </p>
               </div>
             )}
 

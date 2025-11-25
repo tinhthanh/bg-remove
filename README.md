@@ -1,15 +1,54 @@
-# Image Background Remover in the browser 
+# Background Removal with WebGPU
 
-A powerful React + Vite application that removes backgrounds from images directly in your browser. This app leverages machine learning models through Transformers.js to process media locally, ensuring your files never leave your device.
+A powerful background removal tool built with WebGPU and WebAssembly, supporting both browser-based and iframe integration.
 
 ## Features
 
-- 🎯 One-click background removal for images
-- 🎨 Custom background color and image selection
-- 💾 Download options for both transparent and colored backgrounds
-- 🏃‍♂️ Local processing - no server uploads needed
-- 🔒 Privacy-focused - all processing happens in your browser
-- ⚡ Optional WebGPU acceleration for supported browsers
+- 🚀 Fast background removal using WebGPU (when available)
+- 🌐 Cross-browser support with WebAssembly fallback
+- 📱 Optimized for iOS devices
+- 🎨 Built-in image editor
+- 📦 Batch processing support
+- 🔌 **Iframe integration with Penpal** - Embed in your applications
+
+## Iframe Integration
+
+You can easily integrate this background removal tool into your application using an iframe and Penpal for communication.
+
+### Quick Start
+
+```javascript
+import { WindowMessenger, connect } from 'penpal';
+
+const iframe = document.getElementById('bgRemovalIframe');
+const messenger = new WindowMessenger({
+  remoteWindow: iframe.contentWindow,
+  allowedOrigins: ['https://your-domain.com'],
+});
+
+const connection = connect({ messenger });
+const remote = await connection.promise;
+
+// Remove background from image
+const result = await remote.removeBackground(base64Image);
+```
+
+### Documentation
+
+See [IFRAME_INTEGRATION.md](./IFRAME_INTEGRATION.md) for complete documentation including:
+- API reference
+- Usage examples (vanilla JS & React)
+- Security considerations
+- Troubleshooting guide
+
+### Demo
+
+Run the demo to see iframe integration in action:
+
+```bash
+npm run dev
+# Then open http://localhost:5173/parent-demo.html
+```
 
 ## Technical Implementation
 

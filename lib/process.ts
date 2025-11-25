@@ -89,6 +89,14 @@ async function initializeWebGPU() {
 // Initialize the model based on the selected model ID
 export async function initializeModel(forceModelId?: string): Promise<boolean> {
   try {
+    const selectedModelId = forceModelId || FALLBACK_MODEL_ID;
+
+    // Check if model is already initialized with the same ID
+    if (state.model && state.processor && state.currentModelId === selectedModelId) {
+      console.log("Model already initialized:", selectedModelId);
+      return true;
+    }
+
     // Always use RMBG-1.4 for iOS
     if (state.isIOS) {
       console.log('iOS detected, using RMBG-1.4 model');
@@ -121,7 +129,6 @@ export async function initializeModel(forceModelId?: string): Promise<boolean> {
     }
 
     // Non-iOS flow remains the same
-    const selectedModelId = forceModelId || FALLBACK_MODEL_ID;
     
     // Try WebGPU if requested
     if (selectedModelId === WEBGPU_MODEL_ID) {
