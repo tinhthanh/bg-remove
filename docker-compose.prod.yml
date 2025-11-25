@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  app:
+    image: ${DOCKERHUB_USERNAME}/${SERVICE_NAME}:latest
+    container_name: ${SERVICE_NAME}
+    restart: unless-stopped
+    networks:
+      - traefik_proxy
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.2'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/index.html"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - 'traefik.enable=true'
+      
+      # === CẤU HÌNH ROUTER ===
+      # Rule: Host là ui.phanmemvet.vn VÀ Path bắt đầu bằng /remove-bg
+      - 'traefik.http.routers.${SERVICE_NAME}.rule=(Host(`ui.phanmemvet.vn`) || Host(`ui.petplus.vn`)) && PathPrefix(`/remove-bg`)'
+      - 'traefik.http.routers.${SERVICE_NAME}.entrypoints=web'
+      - 'traefik.http.routers.${SERVICE_NAME}.service=${SERVICE_NAME}-svc'
+      
+      # Kích hoạt middleware strip-prefix
+      - 'traefik.http.routers.${SERVICE_NAME}.middlewares=strip-prefix-${SERVICE_NAME}'
+      
+      # === CẤU HÌNH MIDDLEWARE ===
+      # StripPrefix: Loại bỏ /remove-bg khỏi URL trước khi request vào container
+      # Ví dụ: Browser gọi /remove-bg/assets/js -> Container nhận /assets/js
+      - 'traefik.http.middlewares.strip-prefix-${SERVICE_NAME}.stripprefix.prefixes=/remove-bg'
+      
+      # === CẤU HÌNH SERVICE ===
+      - 'traefik.http.services.${SERVICE_NAME}-svc.loadbalancer.server.port=80'
+
+networks:
+  traefik_proxy:
+    external: true

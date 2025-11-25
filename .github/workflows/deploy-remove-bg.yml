@@ -1,0 +1,99 @@
+name: Build and Deploy Remove BG App
+on:
+  push:
+    branches: ['main']
+  workflow_dispatch:
+
+env:
+  SERVICE_NAME: remove-bg  # Tên service (folder trên server)
+  PUBLIC_PATH: /remove-bg  # Path prefix trên trình duyệt
+
+jobs:
+  # === JOB 1: BUILD IMAGE ===
+  build-and-push:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          # Quan trọng: Truyền PUBLIC_PATH vào build-args để Vite config đúng base path
+          build-args: |
+            PUBLIC_PATH=${{ env.PUBLIC_PATH }}
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.SERVICE_NAME }}:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/${{ env.SERVICE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/${{ env.SERVICE_NAME }}:buildcache,mode=max
+
+  # === JOB 2: DEPLOY ===
+  deploy:
+    name: Deploy to Production
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Encode docker-compose
+        id: read_file
+        run: echo "content=$(base64 -w0 docker-compose.prod.yml)" >> $GITHUB_OUTPUT
+
+      - name: SSH and Deploy
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            set -e
+            
+            # Định nghĩa đường dẫn deploy
+            SERVICE_NAME="${{ env.SERVICE_NAME }}"
+            TARGET_DIR="/home/vetgo/cicd/app_services/repo/$SERVICE_NAME"
+            
+            echo "🚀 Deploying $SERVICE_NAME..."
+            
+            # Tạo thư mục nếu chưa có
+            mkdir -p $TARGET_DIR
+            
+            # Ghi file docker-compose mới
+            echo "${{ steps.read_file.outputs.content }}" | base64 -d > $TARGET_DIR/docker-compose.prod.yml
+            
+            cd $TARGET_DIR
+            
+            # Tạo file .env runtime
+            cat << EOF > .env
+            DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
+            SERVICE_NAME=$SERVICE_NAME
+            EOF
+            
+            # Pull image mới nhất
+            docker-compose --env-file .env -f docker-compose.prod.yml pull
+            
+            # Khởi động lại container (remove orphans để xóa container cũ nếu đổi tên)
+            docker-compose --env-file .env -f docker-compose.prod.yml up -d --remove-orphans
+            
+            # Dọn dẹp image cũ
+            docker image prune -f
+            
+            echo "✅ Deployment Success! App is live at https://ui.phanmemvet.vn/remove-bg"
