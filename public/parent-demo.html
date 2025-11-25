@@ -135,10 +135,12 @@
                 </div>
                 <pre class="p-4 text-xs overflow-x-auto text-gray-300"><code class="language-javascript">import { connect, WindowMessenger } from 'penpal';
 
+// Kết nối tới Service Iframe
 const connection = connect({
   messenger: new WindowMessenger({
     remoteWindow: iframe.contentWindow,
-    allowedOrigins: ['https://your-domain.com'],
+    // Cho phép giao tiếp với domain hiện tại
+    allowedOrigins: [window.location.origin],
   })
 });
 
@@ -161,7 +163,8 @@ const blob = await service.removeBackgroundAsBlob(file);</code></pre>
             <!-- Hidden Iframe for Service -->
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 opacity-75 hover:opacity-100 transition-opacity">
                 <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Service Iframe (Debug View)</h3>
-                <iframe id="bgRemovalIframe" src="/" class="w-full h-24 border border-gray-200 rounded bg-gray-50"></iframe>
+                <!-- FIX: Thay đổi src từ "/" thành "/remove-bg/" để trỏ đúng vào app -->
+                <iframe id="bgRemovalIframe" src="/remove-bg/" class="w-full h-24 border border-gray-200 rounded bg-gray-50"></iframe>
             </div>
 
         </div>
@@ -221,7 +224,7 @@ const blob = await service.removeBackgroundAsBlob(file);</code></pre>
         const connection = Penpal.connect({
             messenger: new Penpal.WindowMessenger({
                 remoteWindow: iframe.contentWindow,
-                // In production, list your specific domains here
+                // Cho phép domain hiện tại (tự động nhận diện host và port)
                 allowedOrigins: [window.location.origin],
             }),
             timeout: 30000
