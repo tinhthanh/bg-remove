@@ -23,9 +23,7 @@ services:
     labels:
       - 'traefik.enable=true'
       
-      # === CẤU HÌNH ROUTER ===
-      # Rule: Host là ui.phanmemvet.vn VÀ Path bắt đầu bằng /remove-bg
-      - 'traefik.http.routers.${SERVICE_NAME}.rule=(Host(`ui.phanmemvet.vn`) || Host(`ui.petplus.vn`)) && PathPrefix(`/remove-bg`)'
+      - 'traefik.http.routers.${SERVICE_NAME}.rule=HostRegexp(`^ui\\..+`) && PathPrefix(`/remove-bg`)'
       - 'traefik.http.routers.${SERVICE_NAME}.entrypoints=web'
       - 'traefik.http.routers.${SERVICE_NAME}.service=${SERVICE_NAME}-svc'
       
@@ -34,7 +32,6 @@ services:
       
       # === CẤU HÌNH MIDDLEWARE ===
       # StripPrefix: Loại bỏ /remove-bg khỏi URL trước khi request vào container
-      # Ví dụ: Browser gọi /remove-bg/assets/js -> Container nhận /assets/js
       - 'traefik.http.middlewares.strip-prefix-${SERVICE_NAME}.stripprefix.prefixes=/remove-bg'
       
       # === CẤU HÌNH SERVICE ===
