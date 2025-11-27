@@ -23,7 +23,7 @@ services:
     labels:
       - 'traefik.enable=true'
       
-      - 'traefik.http.routers.${SERVICE_NAME}.rule=HostRegexp(`^ui\\..+`) && PathPrefix(`/remove-bg`)'
+      - "traefik.http.routers.${SERVICE_NAME}.rule=HostRegexp(`^ui\\..+`) && PathPrefix(`/remove-bg`)"
       - 'traefik.http.routers.${SERVICE_NAME}.entrypoints=web'
       - 'traefik.http.routers.${SERVICE_NAME}.service=${SERVICE_NAME}-svc'
       
